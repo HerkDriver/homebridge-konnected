@@ -3,7 +3,7 @@
 </p>
 <span align="center">
 
-# Konnected Homebridge Plugin
+# Konnected Homebridge Plugin with HerkDriver Mod
 
 [![GitHub Release](https://flat.badgen.net/github/release/konnected-io/homebridge-konnected/master?icon=github)](https://github.com/konnected-io/homebridge-konnected/releases) [![npm Release](https://flat.badgen.net/npm/v/homebridge-konnected?icon=npm)](https://www.npmjs.com/package/homebridge-konnected)
 
