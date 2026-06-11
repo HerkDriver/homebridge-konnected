@@ -55,5 +55,7 @@
 * **[Troubleshooting](https://github.com/mkormendy/homebridge-konnected/wiki/4.-Troubleshooting)**
 
 ## Contributions & Thanks
+
 Modified plugin development is performed by HerkDriver. Shout out to Konnected Team for making an awesome platform.
+
 Original Plugin developer -  [Mike Kormendy](https://github.com/mkormendy). 
