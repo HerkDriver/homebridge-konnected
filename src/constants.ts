@@ -80,10 +80,7 @@ export const ALARM_NAMES_TO_NUMBERS = {
   ALARM_TRIGGERED: 4,
 };
 
-export const ALARM_VALUES_TO_NAMES = (value: number) => {
-  Object.entries(ALARM_NAMES_TO_NUMBERS).find(([name, number]) => {
-    if (value === number) {
-      return name;
-    }
-  });
+export const ALARM_VALUES_TO_NAMES = (value: number): string | undefined => {
+  const match = Object.entries(ALARM_NAMES_TO_NUMBERS).find(([, number]) => value === number);
+  return match?.[0];
 };

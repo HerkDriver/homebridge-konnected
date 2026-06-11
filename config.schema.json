@@ -17,20 +17,20 @@
       "expanded": false,
       "properties": {
         "listenerIP": {
-          "title": "Listening IP (optional)",
-          "description": "If the system hosting Homebridge/HOOBS has multiple active network adapters, use this field to force the network IPv4 address that this plugin will listen for zone state changes on.",
+          "title": "Listening IP (auto-assigned)",
+          "description": "The IPv4 network address to listen for zone state changes on. Useful if the system hosting Homebridge/HOOBS has multiple active network adapters and you want to choose which one to use.",
           "type": "string",
           "format": "ipv4",
-          "placeholder": "(default: automatically selected)"
+          "placeholder": "(E.g., 192.168.1.100)"
         },
         "listenerPort": {
-          "title": "Listening Port (optional)",
-          "description": "Use this field to force the network port that this plugin will listen for zone state changes on (between 1000 and 65535).",
+          "title": "Listening Port (auto-assigned)",
+          "description": "The network port to listen for zone state changes on.",
           "type": "number",
           "step": 1,
           "minimum": 1000,
           "maximum": 65535,
-          "placeholder": "(default: randomized by availability)"
+          "placeholder": "(Between 1000 and 65535)"
         },
         "discoveryTimeout": {
           "title": "Discovery Timeout (seconds) (optional)",
@@ -39,7 +39,7 @@
           "step": 1,
           "minimum": 1,
           "maximum": 30,
-          "placeholder": "(default: 5)"
+          "placeholder": "(Default: 5)"
         },
         "entryDelaySettings": {
           "type": "object",
@@ -52,11 +52,35 @@
             },
             "delay": {
               "title": "Delay (seconds) (optional)",
-              "description": "The entry delay before the security system is triggered and the siren zone is triggered.",
+              "description": "The entry delay before the security system is triggered and the siren zone is triggered. Used as the default for all armed modes unless overridden per-mode below.",
               "type": "number",
               "step": 1,
               "minimum": 0,
-              "placeholder": "(default: 30)"
+              "placeholder": "(Default: 30)"
+            },
+            "delayHome": {
+              "title": "Home/Stay entry delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Home/Stay. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
+            },
+            "delayNight": {
+              "title": "Night entry delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Night. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
+            },
+            "delayAway": {
+              "title": "Away entry delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Away. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
             },
             "pulseDuration": {
               "title": "Beeper Pulse Duration (milliseconds) (optional)",
@@ -94,11 +118,35 @@
             },
             "delay": {
               "title": "Delay (seconds) (optional)",
-              "description": "The time used for the exit delay before the security system is completely armed.",
+              "description": "The time used for the exit delay before the security system is completely armed. Used as the default for all armed modes unless overridden per-mode below.",
               "type": "number",
               "step": 1,
               "minimum": 0,
-              "placeholder": "(default: 30)"
+              "placeholder": "(Default: 30)"
+            },
+            "delayHome": {
+              "title": "Home/Stay exit delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Home/Stay. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
+            },
+            "delayNight": {
+              "title": "Night exit delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Night. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
+            },
+            "delayAway": {
+              "title": "Away exit delay (seconds) (optional override)",
+              "description": "Overrides the delay above when armed to Away. Leave blank to use the shared delay above.",
+              "type": "number",
+              "step": 1,
+              "minimum": 0,
+              "placeholder": "(uses shared delay if blank)"
             },
             "audibleBeeperModes": {
               "title": "The following selected arming modes will have an audible beeper countdown (if delay is not zero):",
@@ -115,7 +163,7 @@
                 "enumNames": [
                   "Home/Stay",
                   "Night",
-                  "Away (default)"
+                  "Away (Default)"
                 ]
               },
               "default": [
@@ -182,118 +230,174 @@
                 "zoneNumber": {
                   "title": "Zone",
                   "type": "string",
-                  "oneOf": [{
+                  "oneOf": [
+                    {
                       "title": "V1/V2 & Pro: 1",
-                      "enum": ["1"]
+                      "enum": [
+                        "1"
+                      ]
                     },
                     {
                       "title": "V1/V2 & Pro: 2",
-                      "enum": ["2"]
+                      "enum": [
+                        "2"
+                      ]
                     },
                     {
                       "title": "V1/V2 & Pro: 3",
-                      "enum": ["3"]
+                      "enum": [
+                        "3"
+                      ]
                     },
                     {
                       "title": "V1/V2 & Pro: 4",
-                      "enum": ["4"]
+                      "enum": [
+                        "4"
+                      ]
                     },
                     {
                       "title": "V1/V2 & Pro: 5",
-                      "enum": ["5"]
+                      "enum": [
+                        "5"
+                      ]
                     },
                     {
                       "title": "V1/V2 & Pro: 6",
-                      "enum": ["6"]
+                      "enum": [
+                        "6"
+                      ]
                     },
                     {
                       "title": "V1/V2 Only: Out or Alarm",
-                      "enum": ["out"]
+                      "enum": [
+                        "out"
+                      ]
                     },
                     {
                       "title": "Pro Only: 7",
-                      "enum": ["7"]
+                      "enum": [
+                        "7"
+                      ]
                     },
                     {
                       "title": "Pro Only: 8",
-                      "enum": ["8"]
+                      "enum": [
+                        "8"
+                      ]
                     },
                     {
                       "title": "Pro Only: 9 (binary sensors only)",
-                      "enum": ["9"]
+                      "enum": [
+                        "9"
+                      ]
                     },
                     {
                       "title": "Pro Only: 10 (binary sensors only)",
-                      "enum": ["10"]
+                      "enum": [
+                        "10"
+                      ]
                     },
                     {
                       "title": "Pro Only: 11 (binary sensors only)",
-                      "enum": ["11"]
+                      "enum": [
+                        "11"
+                      ]
                     },
                     {
                       "title": "Pro Only: 12 (binary sensors only)",
-                      "enum": ["12"]
+                      "enum": [
+                        "12"
+                      ]
                     },
                     {
                       "title": "Pro Only: Alarm 1",
-                      "enum": ["alarm1"]
+                      "enum": [
+                        "alarm1"
+                      ]
                     },
                     {
                       "title": "Pro Only: Out1",
-                      "enum": ["out1"]
+                      "enum": [
+                        "out1"
+                      ]
                     },
                     {
                       "title": "Pro Only: Alarm 2 or Out2",
-                      "enum": ["alarm2_out2"]
+                      "enum": [
+                        "alarm2_out2"
+                      ]
                     }
                   ]
                 },
                 "zoneType": {
                   "title": "Type",
                   "type": "string",
-                  "oneOf": [{
+                  "oneOf": [
+                    {
                       "title": "Sensor: Contact Sensor",
-                      "enum": ["contact"]
+                      "enum": [
+                        "contact"
+                      ]
                     },
                     {
                       "title": "Sensor: Motion Sensor",
-                      "enum": ["motion"]
+                      "enum": [
+                        "motion"
+                      ]
                     },
                     {
                       "title": "Sensor: Glass Break Sensor",
-                      "enum": ["glass"]
+                      "enum": [
+                        "glass"
+                      ]
                     },
                     {
                       "title": "Sensor: Tempurature Sensor (eg. DS18B20)",
-                      "enum": ["temperature"]
+                      "enum": [
+                        "temperature"
+                      ]
                     },
                     {
                       "title": "Sensor: Temperature / Humidity Sensor (eg. DHT)",
-                      "enum": ["humidtemp"]
+                      "enum": [
+                        "humidtemp"
+                      ]
                     },
                     {
                       "title": "Sensor: Water Leak / Rain Sensor",
-                      "enum": ["water"]
+                      "enum": [
+                        "water"
+                      ]
                     },
                     {
                       "title": "Sensor: Smoke / CO Sensor",
-                      "enum": ["smoke"]
+                      "enum": [
+                        "smoke"
+                      ]
                     },
                     {
                       "title": "Switch: Alarm Beeper Switch",
-                      "enum": ["beeper"]
+                      "enum": [
+                        "beeper"
+                      ]
                     },
                     {
                       "title": "Switch: Alarm Siren Switch",
-                      "enum": ["siren"]
+                      "enum": [
+                        "siren"
+                      ]
                     },
                     {
                       "title": "Switch: Alarm Strobe Light Switch",
-                      "enum": ["strobe"]
+                      "enum": [
+                        "strobe"
+                      ]
                     },
                     {
                       "title": "Switch: Generic Switch",
-                      "enum": ["switch"]
+                      "enum": [
+                        "switch"
+                      ]
                     }
                   ]
                 },
@@ -516,7 +620,7 @@
                     "pollInterval": {
                       "title": "Poll Interval (minutes) (optional)",
                       "description": "Length of time between, in minutes (between 1 and 1440), that this sensor will report its value.",
-                      "placeholder": "(default: 3)",
+                      "placeholder": "(Default: 3)",
                       "type": "number",
                       "step": 1,
                       "minimum": 1,
@@ -545,7 +649,7 @@
                         "titleMap": [
                           {
                             "value": "high",
-                            "name": "High (unselected default)"
+                            "name": "High (normal default)"
                           },
                           {
                             "value": "low",
@@ -578,8 +682,8 @@
                       "placeholder": "(E.g., 3)"
                     },
                     "triggerableModes": {
-                      "title": "⚠️ Triggerable Modes",
-                      "description": "⚠️ EXPERIMENTAL FEATURE:<br>Choose which modes this switch sensor will trigger the security system alarm.<br>This may have unexpected consequences, it is best to leave these items unchecked.<br><br>If \"Home\" and/or \"Night\" mode are deselected for all sensors and switches, then the HomeKit app will hide those two modes from the app's Security System accessory control.<br>NOTE: when setting up Konnected panels with most traditional security systems, the \"Home\" and/or \"Night\" modes don't operate bi-directionally and should be deselected for all sensors and switches.",
+                      "title": "\u26a0\ufe0f Triggerable Modes",
+                      "description": "\u26a0\ufe0f EXPERIMENTAL FEATURE:<br>Choose which modes this switch sensor will trigger the security system alarm.<br>This may have unexpected consequences, it is best to leave these items unchecked.<br><br>If \"Home\" and/or \"Night\" mode are deselected for all sensors and switches, then the HomeKit app will hide those two modes from the app's Security System accessory control.<br>NOTE: when setting up Konnected panels with most traditional security systems, the \"Home\" and/or \"Night\" modes don't operate bi-directionally and should be deselected for all sensors and switches.",
                       "type": "array",
                       "uniqueItems": true,
                       "items": {

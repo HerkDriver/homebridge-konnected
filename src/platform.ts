@@ -1,18 +1,17 @@
 import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
 
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-import { ZONES, ZONES_TO_PINS, ZONE_TYPES, TYPES_TO_ACCESSORIES } from './constants';
-import { PanelObjectInterface, RuntimeCacheInterface } from './interfaces';
-// import { ReplaceCircular } from './utilities';
-import { KonnectedPlatformAccessory } from './platformAccessory';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
+import { ZONES, ZONES_TO_PINS, ZONE_TYPES, TYPES_TO_ACCESSORIES } from './constants.js';
+import { PanelObjectInterface, RuntimeCacheInterface } from './interfaces.js';
+import { KonnectedPlatformAccessory } from './platformAccessory.js';
 
-import client from 'node-ssdp';      // for devices discovery
-import express from 'express';       // for the listening API
-import fetch from 'node-fetch';      // for making calls to the device
-import http from 'http';             // for creating a listening server
-import fs from 'fs';                 // for working with the filesystem
-import ip from 'ip';                 // for getting active IP on the system
-import { v4 as uuidv4 } from 'uuid'; // for handling UUIDs and creating auth tokens
+import client from 'node-ssdp';          // for devices discovery
+import express from 'express';           // for the listening API
+import fetch from 'node-fetch';          // for making calls to the device
+import http, { Agent } from 'node:http'; // for http listening server and altering http request options
+import fs from 'fs';                     // for working with the filesystem
+import { getSystemIpAddress } from './utilities.js'; // for getting active IP on the system
+import { v4 as uuidv4 } from 'uuid';     // for handling UUIDs and creating auth tokens
 import { URL } from 'url';
 
 /**
@@ -33,9 +32,9 @@ import { URL } from 'url';
  * = react to state change requests from Homebridge/HomeKit and send actuator payload to panel
  */
 export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
-  public readonly Service: typeof Service = this.api.hap.Service;
-  public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
-  public readonly Accessory: typeof PlatformAccessory = this.api.platformAccessory;
+  public readonly Service: typeof Service;
+  public readonly Characteristic: typeof Characteristic;
+  public readonly Accessory: typeof PlatformAccessory;
 
   // global array of references to restored Homebridge/HomeKit accessories from the cache
   // (used in accessory cache disk reads - this is also updated when accessories are initialized)
@@ -53,46 +52,88 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
   public accessoriesRuntimeCache: RuntimeCacheInterface[] = [];
 
   // security system UUID (we only allow one security system per homebridge instance)
-  private securitySystemUUID: string = this.api.hap.uuid.generate(this.config.platform);
+  private securitySystemUUID: string;
 
-  // define entry delay defaults
-  private entryTriggerDelay: number =
-    this.config.advanced?.entryDelaySettings?.delay !== null &&
-    typeof this.config.advanced?.entryDelaySettings?.delay !== 'undefined'
-      ? Math.round(this.config.advanced?.entryDelaySettings?.delay) * 1000
-      : 30000; // zero = instant trigger
+  // define entry delay defaults (in milliseconds), keyed by armed mode value
+  // 0 = home/stay, 1 = away, 2 = night
+  private entryTriggerDelays: Record<number, number>;
 
   private entryTriggerDelayTimerHandle;
 
-  // define exit delay defaults
-  private exitTriggerDelay: number =
-    this.config.advanced?.exitDelaySettings?.delay !== null &&
-    typeof this.config.advanced?.exitDelaySettings?.delay !== 'undefined'
-      ? Math.round(this.config.advanced?.exitDelaySettings?.delay) * 1000
-      : 30000; // zero = instant arming
+  // define exit delay defaults (in milliseconds), keyed by armed mode value
+  private exitTriggerDelays: Record<number, number>;
 
   private exitTriggerDelayTimerHandle1;
   private exitTriggerDelayTimerHandle2;
   private exitTriggerDelayTimerHandle3;
 
   // define listening server variables
-  private listenerIP: string = this.config.advanced?.listenerIP ? this.config.advanced.listenerIP : ip.address(); // system defined primary network interface
-  private listenerPort: number = this.config.advanced?.listenerPort ? this.config.advanced.listenerPort : 0; // zero = autochoose
-  private ssdpTimeout: number = this.config.advanced?.discoveryTimeout
-    ? this.config.advanced.discoveryTimeout * 1000
-    : 5000; // 5 seconds
+  private listenerIP: string;
+  private listenerPort: number;
+  private ssdpTimeout: number;
 
   private listenerAuth: string[] = []; // for storing random auth strings
   private ssdpDiscovering = false; // for storing state of SSDP discovery process
   private ssdpDiscoverAttempts = 0;
 
+  private httpAgent: Agent;
+
   constructor(public readonly log: Logger, public readonly config: PlatformConfig, public readonly api: API) {
+    this.Service = this.api.hap.Service;
+    this.Characteristic = this.api.hap.Characteristic;
+    this.Accessory = this.api.platformAccessory;
+
+    this.securitySystemUUID = this.api.hap.uuid.generate(this.config.platform);
+
+    // Resolve a delay (in milliseconds) for a given armed mode, preferring a
+    // per-mode override, then the shared "delay" value, then a 30 second default.
+    // mode values: 0 = home/stay, 1 = away, 2 = night
+    const resolveModeDelay = (
+      settings:
+        | { delay?: number; delayHome?: number; delayAway?: number; delayNight?: number }
+        | undefined,
+      mode: number,
+    ): number => {
+      const perMode =
+        mode === 0 ? settings?.delayHome : mode === 1 ? settings?.delayAway : settings?.delayNight;
+      const seconds =
+        perMode !== null && typeof perMode !== 'undefined'
+          ? perMode
+          : settings?.delay !== null && typeof settings?.delay !== 'undefined'
+            ? settings?.delay
+            : 30;
+      return Math.round(seconds as number) * 1000; // zero = instant
+    };
+
+    // entry delay: time after a sensor trips (while armed) before the alarm triggers
+    this.entryTriggerDelays = {
+      0: resolveModeDelay(this.config.advanced?.entryDelaySettings, 0), // home/stay
+      1: resolveModeDelay(this.config.advanced?.entryDelaySettings, 1), // away
+      2: resolveModeDelay(this.config.advanced?.entryDelaySettings, 2), // night
+    };
+
+    // exit delay: time after arming before the mode becomes active
+    this.exitTriggerDelays = {
+      0: resolveModeDelay(this.config.advanced?.exitDelaySettings, 0), // home/stay
+      1: resolveModeDelay(this.config.advanced?.exitDelaySettings, 1), // away
+      2: resolveModeDelay(this.config.advanced?.exitDelaySettings, 2), // night
+    };
+
+    this.listenerIP = this.config.advanced?.listenerIP ? this.config.advanced.listenerIP : getSystemIpAddress(); // system defined primary network interface
+    this.listenerPort = this.config.advanced?.listenerPort ? this.config.advanced.listenerPort : 0; // zero = autochoose
+    this.ssdpTimeout = this.config.advanced?.discoveryTimeout
+      ? this.config.advanced.discoveryTimeout * 1000
+      : 5000; // 5 seconds
+
+    // close fetch requests after request/response is performed/received
+    this.httpAgent = new http.Agent({keepAlive: false});
+
     this.log.debug('Finished initializing platform');
 
     // Homebridge looks for and fires this event when it has retrieved all cached accessories from disk
     // this event is also used to init other methods for this plugin
     this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback. Accessories retreived from cache...');
+      this.log.debug('Executed didFinishLaunching callback. Accessories retreived from cache...');
 
       // run the listening server & register the security system
       this.listeningServer();
@@ -316,7 +357,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
    * @reference Alarm Panel Pro: urn:schemas-konnected-io:device:Security:2
    */
   discoverPanels() {
-    const ssdpClient = new client.Client();
+    const ssdpDiscovery = new client.Client();
     const ssdpUrnPartial = 'urn:schemas-konnected-io:device';
     const ssdpDeviceIDs: string[] = []; // used later for deduping SSDP reflections
     const excludedUUIDs: string[] = String(process.env.KONNECTED_EXCLUDES).split(','); // used for ignoring specific panels (mostly for development)
@@ -325,10 +366,11 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
     this.ssdpDiscovering = true;
 
     // begin discovery
-    ssdpClient.search('ssdp:all');
+    ssdpDiscovery.search('ssdp:all');
 
     // on discovery
-    ssdpClient.on('response', (headers) => {
+    ssdpDiscovery.on('response', (headers) => {
+
       // check for only Konnected devices
       if (headers.ST!.indexOf(ssdpUrnPartial) !== -1) {
         // store reported URL of panel that responded
@@ -339,7 +381,9 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
         // dedupe responses, ignore excluded panels in environment variables, and then provision panel(s)
         if (!ssdpDeviceIDs.includes(panelUUID) && !excludedUUIDs.includes(panelUUID)) {
           // get panel status object (not using async await)
-          fetch(ssdpHeaderLocation.replace('Device.xml', 'status'))
+          fetch(ssdpHeaderLocation.replace('Device.xml', 'status'), { 
+            agent: this.httpAgent,
+          })
             // convert response to JSON
             .then((fetchResponse) => fetchResponse.json())
             .then((panelResponseObject) => {
@@ -350,24 +394,23 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
               };
 
               // use the above information to construct panel in Homebridge config
-              this.updateHomebridgeConfig(panelUUID, panelResponseObject);
+              this.updateHomebridgeConfig(panelUUID, panelResponseObject as PanelObjectInterface);
 
-              // if the settings property does not exist in the response,
-              // then we have an unprovisioned panel
-              if (Object.keys(panelResponseObject.settings).length === 0) {
-                this.provisionPanel(panelUUID, panelResponseObject, listenerObject);
+              // if no settings property in response then we have an unprovisioned panel
+              if (Object.keys((panelResponseObject as PanelObjectInterface).settings).length === 0) {
+                this.provisionPanel(panelUUID, panelResponseObject as PanelObjectInterface, listenerObject);
               } else {
-                if (panelResponseObject.settings.endpoint_type === 'rest') {
-                  const panelBroadcastEndpoint = new URL(panelResponseObject.settings.endpoint);
+                if ((panelResponseObject as PanelObjectInterface).settings.endpoint_type === 'rest') {
+                  const panelBroadcastEndpoint = new URL((panelResponseObject as PanelObjectInterface).settings.endpoint);
 
                   // if the IP address or port are not the same, reprovision endpoint component
                   if (
                     panelBroadcastEndpoint.host !== this.listenerIP ||
                     Number(panelBroadcastEndpoint.port) !== this.listenerPort
                   ) {
-                    this.provisionPanel(panelUUID, panelResponseObject, listenerObject);
+                    this.provisionPanel(panelUUID, panelResponseObject as PanelObjectInterface, listenerObject);
                   }
-                } else if (panelResponseObject.settings.endpoint_type === 'aws_iot') {
+                } else if ((panelResponseObject as PanelObjectInterface).settings.endpoint_type === 'aws_iot') {
                   this.log.error(
                     `ERROR: Cannot provision panel ${panelUUID} with Homebridge. Panel has previously been provisioned with another platform (Konnected Cloud, SmartThings, Home Assistant, Hubitat,. etc). Please factory reset your Konnected Alarm panel and disable any other platform connectors before associating the panel with Homebridge.`
                   );
@@ -383,7 +426,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
 
     // stop discovery after a number of seconds seconds, default is 5
     setTimeout(() => {
-      ssdpClient.stop();
+      ssdpDiscovery.stop();
       this.ssdpDiscovering = false;
       if (ssdpDeviceIDs.length) {
         this.log.debug('Discovery complete. Found panels:\n' + JSON.stringify(ssdpDeviceIDs, null, 2));
@@ -409,6 +452,9 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
    * @param panelObject PanelObjectInterface  The status response object of the plugin from discovery.
    */
   updateHomebridgeConfig(panelUUID: string, panelObject: PanelObjectInterface) {
+
+    let configChanged = false;
+
     // homebridge constants
     const config = this.api.user.configPath();
     const storage = this.api.user.storagePath();
@@ -427,12 +473,33 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
 
     // if 'konnected' platform exists in the config
     if (platform >= 0) {
-      // get the panels array or start with an empty array
+
+      type ConfigPlatformAdvancedType = {
+        listenerPort?: number;
+        listenerIP?: string;
+        discoveryTimeout?: string;
+        entryDelay?: number;
+      };
+      modifiedConfig.platforms[platform].advanced as ConfigPlatformAdvancedType;
+
+      // set defaults for listener otherwise
+      if (typeof modifiedConfig.platforms[platform].advanced?.listenerIP === 'undefined' ||
+          modifiedConfig.platforms[platform].advanced?.listenerIP !== this.listenerIP) {
+        modifiedConfig.platforms[platform].advanced.listenerIP = this.listenerIP;
+        configChanged = true;
+      }
+      if (typeof modifiedConfig.platforms[platform].advanced?.listenerPort === 'undefined' || 
+          modifiedConfig.platforms[platform].advanced?.listenerPort !== this.listenerPort) {
+        modifiedConfig.platforms[platform].advanced.listenerPort = this.listenerPort;
+        configChanged = true;
+      }
+
+      // get the panels array OR start with an empty array
       modifiedConfig.platforms[platform].panels = modifiedConfig.platforms[platform].panels || [];
 
-      // find existing definition of the panel
+      // find existing panel definitions
       const platformPanelPosition = modifiedConfig.platforms[platform].panels.findIndex((panel: { [key: string]: unknown }) => panel.uuid === panelUUID);
-
+      
       if (platformPanelPosition < 0) {
         // if panel doesn't exist, push to panels array and write backup and config
         modifiedConfig.platforms[platform].panels.push({
@@ -444,23 +511,33 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
           ipAddress: panelObject.ip,
           port: panelObject.port,
         });
-        fs.writeFileSync(backup, JSON.stringify(existingConfig, null, 4));
-        fs.writeFileSync(config, JSON.stringify(modifiedConfig, null, 4));
+        configChanged = true;
       } else if (
         modifiedConfig.platforms[platform].panels[platformPanelPosition].uuid === panelUUID &&
         (modifiedConfig.platforms[platform].panels[platformPanelPosition].ipAddress !== panelObject.ip ||
           modifiedConfig.platforms[platform].panels[platformPanelPosition].port !== panelObject.port)
       ) {
-        // if the IP address or port is the same don't update the config
+        // if panel IP address or port is not the expected (e.g., network DHCP changes)
+        // we need to update the config for this identified panel
         modifiedConfig.platforms[platform].panels[platformPanelPosition].name = (
           panelObject.model && panelObject.model !== '' ? panelObject.model : 'Konnected V1-V2'
         ).replace(/[^A-Za-z0-9\s/'":\-#.]/gi, '');
         modifiedConfig.platforms[platform].panels[platformPanelPosition].uuid = panelUUID;
         modifiedConfig.platforms[platform].panels[platformPanelPosition].ipAddress = panelObject.ip;
         modifiedConfig.platforms[platform].panels[platformPanelPosition].port = panelObject.port;
+        configChanged = true;
+      }
 
+      if (configChanged === true) {
+        this.log.debug(
+          'Backing up and writing Konnected platform configurations to Homebridge config.json file\n'+JSON.stringify(modifiedConfig.platforms[platform], null, 4)
+        );
         fs.writeFileSync(backup, JSON.stringify(existingConfig, null, 4));
         fs.writeFileSync(config, JSON.stringify(modifiedConfig, null, 4));
+      } else {
+        this.log.debug(
+          'Found and verified Konnected platform configurations in Homebridge config.json file:\n'+JSON.stringify(modifiedConfig.platforms[platform], null, 4)
+        );
       }
     }
   }
@@ -474,7 +551,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
    * @param panelObject PanelObjectInterface  The status response object of the plugin from discovery.
    * @param listenerObject object  Details object for this plugin's listening server.
    */
-  provisionPanel(panelUUID: string, panelObject: PanelObjectInterface, listenerObject) {
+  async provisionPanel(panelUUID: string, panelObject: PanelObjectInterface, listenerObject) {
     let panelIP: string = panelObject.ip;
     let panelPort: number = panelObject.port;
     let panelBlink = true;
@@ -494,8 +571,8 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
       }
     }
 
-    const listeningEndpoint = `http://${listenerObject.ip}:${listenerObject.port}/api/konnected`;
-    const panelSettingsEndpoint = `http://${panelIP}:${panelPort}/settings`;
+    const listeningEndpoint = encodeURI(`http://${listenerObject.ip}:${listenerObject.port}/api/konnected`);
+    const panelSettingsEndpoint = encodeURI(`http://${panelIP}:${panelPort}/settings`);
 
     const bearerAuthToken = uuidv4(); // generate an RFC4122 compliant UUID
     this.listenerAuth.push(bearerAuthToken); // add to array for listening authorization
@@ -523,6 +600,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
         await fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
+          agent: this.httpAgent,
           body: JSON.stringify(panelConfigurationPayload),
         });
       } catch (error: unknown) {
@@ -565,7 +643,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
         // If one network interface goes down, the panel can fallback to the other
         // interface and the accessories lose their associated UUID, which can
         // result in duplicated accessories, half of which become non-responsive.
-        const panelShortUUID: string =
+        const panelShortUUID: string | unknown =
           'chipId' in panelObject ? panelUUID.match(/([^-]+)$/i)![1] : panelObject.mac.replace(/:/g, '');
 
         // isolate specific panel and make sure there are zones in that panel
@@ -990,13 +1068,15 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
           }
         });
 
-        // wait the entry delay time and trigger the security system
+        // wait the (per-mode) entry delay time and trigger the security system
+        const armedMode = Number(securitySystemAccessory?.context.device.state);
+        const entryDelay = this.entryTriggerDelays[armedMode] ?? 30000;
         this.entryTriggerDelayTimerHandle = setTimeout(() => {
           this.log.debug(
             `Set [${securitySystemAccessory?.displayName}] (${securitySystemAccessory?.context.device.serialNumber}) as '${securitySystemAccessory?.context.device.type}' characteristic: 4 (triggered!)`
           );
           this.controlSecuritySystem(4);
-        }, this.entryTriggerDelay);
+        }, entryDelay);
       } else {
         // accessory is just sensing change
 
@@ -1114,6 +1194,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
                   const response = await fetch(url, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
+                    agent: this.httpAgent,
                     body: JSON.stringify(actuatorPayload),
                   });
                   if (
@@ -1187,59 +1268,65 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
         }
       });
 
-      if (
-        (typeof this.config.advanced?.exitDelaySettings?.audibleBeeperModes !== 'undefined' &&
-          this.config.advanced?.exitDelaySettings?.audibleBeeperModes.includes(String(value))) ||
-        (typeof this.config.advanced?.exitDelaySettings?.audibleBeeperModes === 'undefined' && value === 1)
-      ) {
-        // if the user has configured which mode should have audible beeper countdowns
-        // or if not, but the security mode is being set to away, then we do some sort of default countdown
-        this.accessoriesRuntimeCache.forEach((runtimeCacheAccessory) => {
-          if ('beeper' === runtimeCacheAccessory.type) {
-            if (this.exitTriggerDelay > minDefault) {
-              // three stages of short beeper pulses (per second): 1ps > 2ps > 4ps
-              this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
-                pulseDuration: duration,
-                pulsePause: pause,
-                pulseRepeat: Math.floor(this.exitTriggerDelay / 1000 / 3),
-              });
-              // we need to clear this if the mode changes before they complete
-              // make as a variable that we can clear set timeout
-              this.exitTriggerDelayTimerHandle2 = setTimeout(() => {
+      // determine the (per-mode) exit delay for the mode being armed to
+      const exitDelay = this.exitTriggerDelays[value] ?? 30000;
+
+      if (exitDelay > 0) {
+        // decide whether this mode should play an audible beeper countdown:
+        // honor the user's configured modes, otherwise default to "Away" only
+        const audibleCountdown =
+          (typeof this.config.advanced?.exitDelaySettings?.audibleBeeperModes !== 'undefined' &&
+            this.config.advanced?.exitDelaySettings?.audibleBeeperModes.includes(String(value))) ||
+          (typeof this.config.advanced?.exitDelaySettings?.audibleBeeperModes === 'undefined' && value === 1);
+
+        if (audibleCountdown) {
+          this.accessoriesRuntimeCache.forEach((runtimeCacheAccessory) => {
+            if ('beeper' === runtimeCacheAccessory.type) {
+              if (exitDelay > minDefault) {
+                // three stages of short beeper pulses (per second): 1ps > 2ps > 4ps
                 this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
                   pulseDuration: duration,
-                  pulsePause: pause / 2,
-                  pulseRepeat: Math.floor((this.exitTriggerDelay / 1000 / 3) * 2) - 1,
+                  pulsePause: pause,
+                  pulseRepeat: Math.floor(exitDelay / 1000 / 3),
                 });
-              }, this.exitTriggerDelay / 3);
-              // we need to clear this if the mode changes before they complete
-              // make as a variable that we can clear set timeout
-              this.exitTriggerDelayTimerHandle3 = setTimeout(() => {
+                // we need to clear this if the mode changes before they complete
+                // make as a variable that we can clear set timeout
+                this.exitTriggerDelayTimerHandle2 = setTimeout(() => {
+                  this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
+                    pulseDuration: duration,
+                    pulsePause: pause / 2,
+                    pulseRepeat: Math.floor((exitDelay / 1000 / 3) * 2) - 1,
+                  });
+                }, exitDelay / 3);
+                // we need to clear this if the mode changes before they complete
+                // make as a variable that we can clear set timeout
+                this.exitTriggerDelayTimerHandle3 = setTimeout(() => {
+                  this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
+                    pulseDuration: duration,
+                    pulsePause: pause / 4,
+                    pulseRepeat: Math.floor((exitDelay / 1000 / 3) * 4) - 2,
+                  });
+                }, (exitDelay / 3) * 2);
+              } else if (exitDelay <= minDefault && exitDelay > 1000) {
+                // one short pulse per second
                 this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
                   pulseDuration: duration,
-                  pulsePause: pause / 4,
-                  pulseRepeat: Math.floor((this.exitTriggerDelay / 1000 / 3) * 4) - 2,
+                  pulsePause: pause,
+                  pulseRepeat: exitDelay / 1000,
                 });
-              }, (this.exitTriggerDelay / 3) * 2);
-            } else if (this.exitTriggerDelay <= minDefault && this.exitTriggerDelay > 1000) {
-              // one short pulse per second
-              this.actuateAccessory(runtimeCacheAccessory.UUID, true, {
-                pulseDuration: duration,
-                pulsePause: pause,
-                pulseRepeat: this.exitTriggerDelay / 1000,
-              });
+              }
             }
-          }
-        });
+          });
+        }
         // wait the exit delay time and then arm security system based on value
         this.exitTriggerDelayTimerHandle1 = setTimeout(() => {
           this.konnectedPlatformAccessories[this.securitySystemUUID].service.updateCharacteristic(
             this.Characteristic.SecuritySystemCurrentState,
             value
           );
-        }, this.exitTriggerDelay);
+        }, exitDelay);
       } else {
-        // immediately arm system
+        // immediately arm system (no exit delay for this mode)
         this.konnectedPlatformAccessories[this.securitySystemUUID].service.updateCharacteristic(
           this.Characteristic.SecuritySystemCurrentState,
           value
