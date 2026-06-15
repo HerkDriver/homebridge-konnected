@@ -75,6 +75,10 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
   private listenerAuth: string[] = []; // for storing random auth strings
   private ssdpDiscovering = false; // for storing state of SSDP discovery process
   private ssdpDiscoverAttempts = 0;
+  private ssdpClient?: { stop: () => void }; // active SSDP client, tracked so it can be stopped on shutdown
+  private ssdpTimerHandle?: ReturnType<typeof setTimeout>; // active discovery (re)try timer
+  private isShuttingDown = false; // set true on Homebridge shutdown to halt rediscovery
+  private server?: ReturnType<typeof http.createServer>; // listening server, tracked for clean shutdown
 
   private httpAgent: Agent;
 
@@ -159,6 +163,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
   listeningServer() {
     const app = express();
     const server = http.createServer(app);
+    this.server = server;
     app.use(express.json());
 
     // log (don't crash on) listener errors such as the port already being in use
@@ -172,12 +177,24 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
       this.log.info(`Listening for zone changes on ${this.listenerIP} port ${this.listenerPort}`);
     });
 
-    // Close the listening server cleanly when Homebridge shuts down.
-    // NOTE: this previously hooked process SIGINT/SIGTERM directly and never
-    // exited, which suppressed Node's default termination and could leave
-    // Homebridge unable to shut down (causing restart loops). Homebridge's own
-    // 'shutdown' event is the correct hook and lets Homebridge control exit.
+    // Release all long-lived handles cleanly when Homebridge shuts down so the
+    // process can exit. NOTE: this previously hooked process SIGINT/SIGTERM
+    // directly and never exited, which suppressed Node's default termination.
+    // It also did not stop SSDP discovery, whose UDP socket and retry timer kept
+    // the event loop alive and prevented a clean shutdown (restart loops).
+    // Homebridge's own 'shutdown' event is the correct hook.
     this.api.on('shutdown', () => {
+      this.isShuttingDown = true;
+      // stop the SSDP discovery retry timer and close its socket
+      if (this.ssdpTimerHandle) {
+        clearTimeout(this.ssdpTimerHandle);
+      }
+      try {
+        this.ssdpClient?.stop();
+      } catch {
+        // ignore errors stopping an already-stopped client
+      }
+      // close the listening server
       server.close(() => {
         this.log.info(`Listening port ${this.listenerPort} closed and released`);
       });
@@ -366,7 +383,12 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
    * @reference Alarm Panel Pro: urn:schemas-konnected-io:device:Security:2
    */
   discoverPanels() {
+    // don't start (or restart) discovery once Homebridge is shutting down
+    if (this.isShuttingDown) {
+      return;
+    }
     const ssdpDiscovery = new client.Client();
+    this.ssdpClient = ssdpDiscovery;
     const ssdpUrnPartial = 'urn:schemas-konnected-io:device';
     const ssdpDeviceIDs: string[] = []; // used later for deduping SSDP reflections
     const excludedUUIDs: string[] = String(process.env.KONNECTED_EXCLUDES).split(','); // used for ignoring specific panels (mostly for development)
@@ -434,12 +456,12 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
     });
 
     // stop discovery after a number of seconds seconds, default is 5
-    setTimeout(() => {
+    this.ssdpTimerHandle = setTimeout(() => {
       ssdpDiscovery.stop();
       this.ssdpDiscovering = false;
       if (ssdpDeviceIDs.length) {
         this.log.debug('Discovery complete. Found panels:\n' + JSON.stringify(ssdpDeviceIDs, null, 2));
-      } else if (this.ssdpDiscoverAttempts < 5) {
+      } else if (!this.isShuttingDown && this.ssdpDiscoverAttempts < 5) {
         this.ssdpDiscoverAttempts++;
         this.log.debug(
           `Discovery attempt ${this.ssdpDiscoverAttempts} could not find any panels on the network. Retrying...`

@@ -1,12 +1,12 @@
 <p align="center">
-  <a href="https://konnected.io/?utm_campaign=homebridge" title="Konnected Plugin for Homebridge"><img alt="Konnected Plugin for Homebridge" src="https://raw.githubusercontent.com/YOUR-GITHUB-USERNAME/homebridge-konnected/master/branding/Konnected_w_Homebridge.svg?sanitize=true" width="500px"></a>
+  <a href="https://konnected.io/?utm_campaign=homebridge" title="Konnected Plugin for Homebridge"><img alt="Konnected Plugin for Homebridge" src="https://raw.githubusercontent.com/HerkDriver/homebridge-konnected/master/branding/Konnected_w_Homebridge.svg?sanitize=true" width="500px"></a>
 </p>
 
 <span align="center">
 
 # Homebridge Konnected Plugin (v2 Fork)
 
-[![npm Release](https://flat.badgen.net/npm/v/homebridge-konnected-v2?icon=npm)](https://www.npmjs.com/package/homebridge-konnected-v2) [![npm Download Total](https://flat.badgen.net/npm/dt/homebridge-konnected-v2?icon=npm)](https://www.npmjs.com/package/homebridge-konnected-v2) [![GitHub Release](https://flat.badgen.net/github/release/YOUR-GITHUB-USERNAME/homebridge-konnected?icon=github)](https://github.com/YOUR-GITHUB-USERNAME/homebridge-konnected/releases)
+[![npm Release](https://flat.badgen.net/npm/v/homebridge-konnected-v2?icon=npm)](https://www.npmjs.com/package/homebridge-konnected-v2) [![npm Download Total](https://flat.badgen.net/npm/dt/homebridge-konnected-v2?icon=npm)](https://www.npmjs.com/package/homebridge-konnected-v2) [![GitHub Release](https://flat.badgen.net/github/release/HerkDriver/homebridge-konnected?icon=github)](https://github.com/HerkDriver/homebridge-konnected/releases)
 
 [![Homebridge 2.x ready](https://flat.badgen.net/badge/homebridge/2.x%20ready/57277c)](https://github.com/homebridge/homebridge/releases) [![Apple HomeKit](https://flat.badgen.net/badge/apple/homekit/f89f1a?icon=apple)](https://www.apple.com/ios/home/) [![License: MIT](https://flat.badgen.net/badge/license/MIT/blue)](./LICENSE)
 
