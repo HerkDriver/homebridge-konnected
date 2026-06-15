@@ -3,11 +3,15 @@
 </p>
 <span align="center">
 
-# Homebridge Konnected Plugin - HerkDriver Mod
+# Homebridge Konnected Plugin
 
-[![Apple HomeKit](https://flat.badgen.net/badge/apple/homekit/f89f1a?icon=apple)](https://www.apple.com/ios/home/) 
+[![GitHub Release](https://flat.badgen.net/github/release/mkormendy/homebridge-konnected/master?icon=github)](https://github.com/mkormendy/homebridge-konnected/releases) [![npm Release](https://flat.badgen.net/npm/v/homebridge-konnected?icon=npm)](https://www.npmjs.com/package/homebridge-konnected)
 
-[![Discord Channel](https://flat.badgen.net/badge/discord/homebridge%23konnected/6670f5?icon=discord)](https://discord.gg/YsujtCysZZ) [![Discord Channel](https://flat.badgen.net/badge/reddit/r%2Fkonnected/FF4500?icon=https://www.redditinc.com/assets/images/site/logo01.svg)](https://www.reddit.com/r/konnected/) [![Discussions](https://flat.badgen.net/badge/github/discussions?icon=github&label=repo)](https://github.com/HerkDriver/homebridge-konnected/discussions)
+[![Lint & Build](https://flat.badgen.net/github/checks/mkormendy/homebridge-konnected?icon=github&label=lint%20%26%20build)](https://github.com/mkormendy/homebridge-konnected/actions) [![npm Download Total](https://flat.badgen.net/npm/dt/homebridge-konnected?icon=npm)](https://www.npmjs.com/package/homebridge-konnected)
+
+[![Homebridge Verified](https://flat.badgen.net/badge/homebridge/verified/4f4f4f?icon=https://developers.homebridge.io/assets/images/homebridge-color-round.svg&labelColor=57277c)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins) [![HOOBS Certified](https://flat.badgen.net/badge/hoobs/certified/4f4f4f?icon=https://developers.homebridge.io/assets/images/homebridge-color-round.svg&labelColor=ffac10)](https://plugins.hoobs.org/plugin/homebridge-konnected) [![Apple HomeKit](https://flat.badgen.net/badge/apple/homekit/f89f1a?icon=apple)](https://www.apple.com/ios/home/) 
+
+[![Discord Channel](https://flat.badgen.net/badge/discord/homebridge%23konnected/6670f5?icon=discord)](https://discord.gg/YsujtCysZZ) [![Discord Channel](https://flat.badgen.net/badge/reddit/r%2Fkonnected/FF4500?icon=https://www.redditinc.com/assets/images/site/logo01.svg)](https://www.reddit.com/r/konnected/) [![Discussions](https://flat.badgen.net/badge/github/discussions?icon=github&label=repo)](https://github.com/mkormendy/homebridge-konnected/discussions)
 
 [![License: MIT](https://flat.badgen.net/badge/license/MIT/blue)](https://github.com/mkormendy/homebridge-konnected/blob/master/LICENSE)
 
@@ -20,9 +24,9 @@
   <b>Native HomeKit Security System Control</b>
   <ul>
     <li>Arm/Disarm Security System</li>
+    <li>Optional Home/Stay and Night Modes</li>
     <li>Configurable Sensor Security System Triggering</li>
-    <li>Home/Stay, Night and Away Modes</li>
-    <li>Configurable Entry/Exit Delay Times per Mode</li>
+    <li>Configurable Entry Delay Times</li>
     <li>Traditional Alarm System Integration</li>
     <li>Panic Button via Alarm Siren Switch</li>
     <li>Inverting Sensors</li>
@@ -47,6 +51,12 @@
   </ul>
 </div>
 
+## Upcoming Features
+
+  * Bypass Switch for Sensor Zones
+  * Virtual Zones for HomeKit Automation
+  * Professional 24/7 smart home monitoring (powered by [Noonlight](https://noonlight.com/))
+
 ## Wiki
 
 * **[Installation](https://github.com/mkormendy/homebridge-konnected/wiki/1.-Installation)**
@@ -56,6 +66,10 @@
 
 ## Contributions & Thanks
 
-Modified plugin development is performed by HerkDriver. Shout out to Konnected Team for making an awesome platform.
+Plugin development, maintainance, and forum/ticket support is performed by [Mike Kormendy](https://github.com/mkormendy) in his spare time. If you somehow benefit from using this open source plugin and want to support Mike for his work on it, consider sponsoring him on [Github](https://github.com/sponsors/mkormendy), donate with [PayPal](https://www.paypal.me/mikekormendy), or buy him a coffee with [Ko-fi](https://ko-fi.com/mikekormendy) – any contribution is greatly appreciated.
 
-Original Plugin developer -  [Mike Kormendy](https://github.com/mkormendy). 
+I'd like to thank the following people for their guidance and help with code reviews, testing, pull requests etc:
+- [@bwp91](https://github.com/bwp91)
+- [@oznu](https://github.com/oznu) @ Homebridge
+- [@northernman54](https://github.com/NorthernMan54) @ Homebridge
+- [@mkellsy](https://github.com/mkellsy) @ HOOBS

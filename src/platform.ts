@@ -11,7 +11,7 @@ import fetch from 'node-fetch';          // for making calls to the device
 import http, { Agent } from 'node:http'; // for http listening server and altering http request options
 import fs from 'fs';                     // for working with the filesystem
 import { getSystemIpAddress } from './utilities.js'; // for getting active IP on the system
-import { v4 as uuidv4 } from 'uuid';     // for handling UUIDs and creating auth tokens
+import { randomUUID } from 'node:crypto'; // for creating auth tokens (replaces the uuid package)
 import { URL } from 'url';
 
 /**
@@ -574,7 +574,7 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
     const listeningEndpoint = encodeURI(`http://${listenerObject.ip}:${listenerObject.port}/api/konnected`);
     const panelSettingsEndpoint = encodeURI(`http://${panelIP}:${panelPort}/settings`);
 
-    const bearerAuthToken = uuidv4(); // generate an RFC4122 compliant UUID
+    const bearerAuthToken = randomUUID(); // generate an RFC4122 compliant UUID
     this.listenerAuth.push(bearerAuthToken); // add to array for listening authorization
 
     const panelPayloadCore = {

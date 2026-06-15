@@ -3,7 +3,7 @@ name: Bug Report
 about: Create a Bug Report to Fix an Issue
 title: ''
 labels: bug
-assignees: mkormendy
+assignees: 
 
 ---
 
