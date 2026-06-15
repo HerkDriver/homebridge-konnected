@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://konnected.io/?utm_campaign=homebridge" title="Konnected Plugin for Homebridge"><img alt="Konnected Plugin for Homebridge" src="https://raw.githubusercontent.com/YOUR-GITHUB-USERNAME/homebridge-konnected/master/branding/Konnected_w_Homebridge.svg?sanitize=true" width="500px"></a>
+  <a href="https://konnected.io/?utm_campaign=homebridge" title="Konnected Plugin for Homebridge"><img alt="Konnected Plugin for Homebridge" src="https://raw.githubusercontent.com/HerkDriver/homebridge-konnected/master/branding/Konnected_w_Homebridge.svg?sanitize=true" width="500px"></a>
 </p>
 
 <span align="center">
