@@ -161,18 +161,27 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
     const server = http.createServer(app);
     app.use(express.json());
 
+    // log (don't crash on) listener errors such as the port already being in use
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      this.log.error(`Listening server error on ${this.listenerIP} port ${this.listenerPort}: ${err.message}`);
+    });
+
     server.listen(this.listenerPort, () => {
       // store port to its global variable
       this.listenerPort = server.address()!['port'];
       this.log.info(`Listening for zone changes on ${this.listenerIP} port ${this.listenerPort}`);
     });
 
-    // restart/crash cleanup
-    const cleanup = () => {
-      server.close();
-      this.log.info(`Listening port ${this.listenerPort} closed and released`);
-    };
-    process.on('SIGINT', cleanup).on('SIGTERM', cleanup);
+    // Close the listening server cleanly when Homebridge shuts down.
+    // NOTE: this previously hooked process SIGINT/SIGTERM directly and never
+    // exited, which suppressed Node's default termination and could leave
+    // Homebridge unable to shut down (causing restart loops). Homebridge's own
+    // 'shutdown' event is the correct hook and lets Homebridge control exit.
+    this.api.on('shutdown', () => {
+      server.close(() => {
+        this.log.info(`Listening port ${this.listenerPort} closed and released`);
+      });
+    });
 
     const respond = (req, res) => {
       // bearer auth token not provided
