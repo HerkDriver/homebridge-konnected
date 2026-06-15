@@ -3,15 +3,15 @@
   "name": "homebridge-konnected-v2",
   "version": "2.0.2",
   "description": "Homebridge plugin for Konnected security alarm systems (Homebridge 2.x fork)",
-  "author": "YOUR-NAME",
+  "author": "HerkDriver",
   "license": "MIT",
-  "homepage": "https://github.com/YOUR-GITHUB-USERNAME/homebridge-konnected#readme",
+  "homepage": "https://github.com/HerkDriver/homebridge-konnected#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR-GITHUB-USERNAME/homebridge-konnected.git"
+    "url": "git+https://github.com/HerkDriver/homebridge-konnected.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR-GITHUB-USERNAME/homebridge-konnected/issues"
+    "url": "https://github.com/HerkDriver/homebridge-konnected/issues"
   },
   "type": "module",
   "engines": {
