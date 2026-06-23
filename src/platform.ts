@@ -401,13 +401,24 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
 
     // on discovery
     ssdpDiscovery.on('response', (headers) => {
+      // An 'ssdp:all' search returns responses from every UPnP device on the
+      // network, many of which won't include the headers we rely on. Guard
+      // before reading them — a missing header here previously threw
+      // "Cannot read properties of undefined" and could crash Homebridge.
+      const searchTarget = typeof headers.ST === 'string' ? headers.ST : '';
 
       // check for only Konnected devices
-      if (headers.ST!.indexOf(ssdpUrnPartial) !== -1) {
+      if (searchTarget.indexOf(ssdpUrnPartial) !== -1) {
         // store reported URL of panel that responded
         const ssdpHeaderLocation: string = headers.LOCATION || '';
         // extract UUID of panel from the USN string
-        const panelUUID: string = headers.USN!.match(/^uuid:(.*)::.*$/i)![1] || '';
+        const usnMatch = typeof headers.USN === 'string' ? headers.USN.match(/^uuid:(.*)::.*$/i) : null;
+        const panelUUID: string = usnMatch && usnMatch[1] ? usnMatch[1] : '';
+
+        // a Konnected device without a parseable UUID can't be provisioned; skip it
+        if (!panelUUID) {
+          return;
+        }
 
         // dedupe responses, ignore excluded panels in environment variables, and then provision panel(s)
         if (!ssdpDeviceIDs.includes(panelUUID) && !excludedUUIDs.includes(panelUUID)) {
@@ -447,6 +458,13 @@ export class KonnectedHomebridgePlatform implements DynamicPlatformPlugin {
                   );
                 }
               }
+            })
+            .catch((error) => {
+              this.log.error(
+                `Could not retrieve status from Konnected panel ${panelUUID} at ${ssdpHeaderLocation}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              );
             });
 
           // add the UUID to the deduping array
